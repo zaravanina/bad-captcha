@@ -59,6 +59,7 @@ The captcha is a series of steps, one per human sense. **Each person owns one st
 | 2 | Hear | `src/steps/02-hear.tsx` | Match a tone's pitch with an unlabeled slider |
 | 3 | Touch | `src/steps/03-touch.tsx` | Jigsaw with face-down pieces that flip back |
 | 4 | Smell | `src/steps/04-smell.tsx` | "Which color matches the smell of mint?", answered with the color picker |
+| 5 | Emotion | `src/steps/05-emotion.tsx` | Placeholder, waiting for its owner |
 
 **Switching steps while developing:** in `npm run dev` there's a **DEV bar** at the bottom of the page. Click a step (or **Final**) to jump to it, click ↻ to restart the current step, or press **Alt + ← / →**. The URL updates too, so `http://localhost:3000/?step=2` reloads straight into step 2. The bar is hidden in production builds unless you add `?dev` to the URL.
 
@@ -86,7 +87,7 @@ Steps only render in the browser, so `window`, `Math.random()` and audio are saf
 
 ### Add a new step
 
-1. Copy `src/steps/_template.tsx` to `src/steps/05-your-sense.tsx` and build your step in it.
+1. Copy `src/steps/_template.tsx` to `src/steps/06-your-sense.tsx` and build your step in it.
 2. Add it to the list in `src/steps/index.ts` (one import line and one entry). This is the only shared file. If two people add a step at the same time, Git may ask you to keep both lines.
 
 When the last step passes, the final screen (`src/captcha/FinalScreen.tsx`) shows the time taken and the number of failed attempts.
