@@ -55,7 +55,7 @@ The captcha is a series of steps, one per human sense. **Each person owns one st
 
 | # | Sense | File | What it is |
 | --- | --- | --- | --- |
-| 1 | See | `src/steps/01-see.tsx` | Sort scrambled hue tiles into a gradient |
+| 1 | See | `src/steps/01-see.tsx` | Type in the values of a shown color (RGB, HSL or CMYK). Close passes, exact fails |
 | 2 | Hear | `src/steps/02-hear.tsx` | Match a tone's pitch with an unlabeled slider |
 | 3 | Touch | `src/steps/03-touch.tsx` | Jigsaw with face-down pieces that flip back |
 | 4 | Smell | `src/steps/04-smell.tsx` | Placeholder, waiting for its owner |
