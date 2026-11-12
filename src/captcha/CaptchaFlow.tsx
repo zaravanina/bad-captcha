@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { steps } from "@/steps";
 import DevBar, { devBarEnabled } from "./DevBar";
 import FinalScreen from "./FinalScreen";
+import LoginScreen from "./LoginScreen";
 import type { Step, StepProps } from "./types";
 
 const subscribe = () => () => {};
@@ -12,7 +13,7 @@ export default function CaptchaFlow() {
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
 
   return (
-    <main className="grid flex-1 place-items-center bg-neutral-200 p-4">
+    <main className="grid flex-1 place-items-center bg-neutral-200 p-4 text-neutral-900">
       <div className="w-full max-w-md bg-white p-6 shadow-lg">
         {isClient ? <Flow /> : <p className="text-sm text-neutral-400">Loading…</p>}
       </div>
@@ -22,7 +23,7 @@ export default function CaptchaFlow() {
 
 function stepFromUrl() {
   const n = Number(new URLSearchParams(window.location.search).get("step"));
-  return n >= 1 && n <= steps.length ? n - 1 : 0;
+  return Number.isInteger(n) && n >= 1 && n <= steps.length + 1 ? n - 1 : -1;
 }
 
 function Flow() {
@@ -35,11 +36,32 @@ function Flow() {
   const [showDevBar] = useState(devBarEnabled);
 
   const done = index >= steps.length;
+  const started = index >= 0;
+
+  useEffect(() => {
+    function restoreFromUrl() {
+      setIndex(stepFromUrl());
+      setMessage("");
+      setRun((r) => r + 1);
+    }
+    window.addEventListener("popstate", restoreFromUrl);
+    return () => window.removeEventListener("popstate", restoreFromUrl);
+  }, []);
+
+  function navigateTo(i: number) {
+    if (!Number.isInteger(i) || i < 0 || i > steps.length) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("step", String(i + 1));
+    if (url.href !== window.location.href) {
+      window.history.pushState(null, "", url);
+    }
+    setIndex(i);
+  }
 
   function pass() {
     setMessage("");
     if (index + 1 >= steps.length) setSeconds(Math.round((Date.now() - startedAt) / 1000));
-    setIndex(index + 1);
+    navigateTo(index + 1);
   }
 
   function fail(text = "Wrong. Try again.") {
@@ -48,7 +70,7 @@ function Flow() {
   }
 
   function restart() {
-    setIndex(0);
+    navigateTo(0);
     setFails(0);
     setMessage("");
     setStartedAt(Date.now());
@@ -57,23 +79,24 @@ function Flow() {
 
   function goTo(i: number) {
     if (i >= steps.length) setSeconds(Math.round((Date.now() - startedAt) / 1000));
-    setIndex(i);
+    navigateTo(i);
     setMessage("");
     setRun((r) => r + 1);
-    const url = new URL(window.location.href);
-    if (i < steps.length) url.searchParams.set("step", String(i + 1));
-    else url.searchParams.delete("step");
-    window.history.replaceState(null, "", url);
   }
 
   return (
     <>
-      {done ? (
+      {!started ? (
+        <LoginScreen onVerify={() => {
+          setStartedAt(Date.now());
+          navigateTo(0);
+        }} />
+      ) : done ? (
         <FinalScreen seconds={seconds} fails={fails} onRestart={restart} />
       ) : (
         <StepView step={steps[index]} index={index} stepKey={`${run}-${index}`} message={message} pass={pass} fail={fail} />
       )}
-      {showDevBar && <DevBar current={index} onGoTo={goTo} />}
+      {started && showDevBar && <DevBar current={index} onGoTo={goTo} />}
     </>
   );
 }
