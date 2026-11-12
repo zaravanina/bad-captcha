@@ -9,14 +9,20 @@ import type { Step, StepProps } from "./types";
 
 const subscribe = () => () => {};
 
+const stepPositions = [
+  "-translate-x-1 sm:-translate-x-[min(6vw,5.5rem)] sm:-translate-y-4",
+  "translate-x-1 translate-y-2 sm:translate-x-[min(5vw,4.5rem)] sm:translate-y-7",
+  "-translate-x-1 translate-y-2 sm:-translate-x-[min(4vw,3.5rem)] sm:translate-y-8",
+  "translate-x-1 -translate-y-2 sm:translate-x-[min(6vw,5.5rem)] sm:-translate-y-7",
+  "-translate-x-1 -translate-y-2 sm:-translate-x-[min(5vw,4.5rem)] sm:-translate-y-5",
+];
+
 export default function CaptchaFlow() {
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
 
   return (
-    <main className="relative grid flex-1 place-items-center bg-neutral-200 px-4 pb-4 pt-20 text-neutral-900">
-      <div className="w-full max-w-md bg-white p-6 shadow-lg">
-        {isClient ? <Flow /> : <p className="text-sm text-neutral-400">Loading…</p>}
-      </div>
+    <main className="relative grid flex-1 place-items-center bg-neutral-200 px-4 pb-16 pt-24 text-neutral-900">
+      {isClient ? <Flow /> : <div className="w-full max-w-md bg-white p-6 shadow-lg"><p className="text-sm text-neutral-400">Loading…</p></div>}
     </main>
   );
 }
@@ -73,6 +79,7 @@ function Flow() {
   function restart() {
     navigateTo(0);
     setFails(0);
+    setSeconds(0);
     setMessage("");
     setStartedAt(Date.now());
     setRun((r) => r + 1);
@@ -105,6 +112,7 @@ function Flow() {
           Back to login
         </button>
       )}
+      <div className={`w-full max-w-md bg-white p-6 shadow-lg ${started && !done ? stepPositions[index] ?? "" : ""}`}>
       {!started ? (
         <LoginScreen onVerify={() => {
           setStartedAt(Date.now());
@@ -113,8 +121,9 @@ function Flow() {
       ) : done ? (
         <FinalScreen seconds={seconds} fails={fails} onRestart={restart} />
       ) : (
-        <StepView step={steps[index]} index={index} stepKey={`${run}-${index}`} message={message} pass={pass} fail={fail} />
+        <StepView step={steps[index]} index={index} stepKey={`${run}-${index}`} message={message} pass={pass} fail={fail} restart={restart} />
       )}
+      </div>
       {started && showDevBar && <DevBar current={index} onGoTo={goTo} />}
     </>
   );
@@ -127,18 +136,15 @@ type StepViewProps = StepProps & {
   message: string;
 };
 
-function StepView({ step, index, stepKey, message, pass, fail }: StepViewProps) {
+function StepView({ step, stepKey, message, pass, fail, restart }: StepViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
         <div className="flex justify-between text-xs text-neutral-500">
           <span className="font-semibold uppercase tracking-wide">Verify you are human</span>
           <span>
-            Step {index + 1} of {steps.length}
+            Step 1 of <span className="align-middle text-lg leading-none">∞</span>
           </span>
-        </div>
-        <div className="mt-2 h-1 bg-neutral-200">
-          <div className="h-full bg-neutral-800 transition-all" style={{ width: `${(index / steps.length) * 100}%` }} />
         </div>
       </div>
 
@@ -148,7 +154,7 @@ function StepView({ step, index, stepKey, message, pass, fail }: StepViewProps) 
         <p className="text-sm text-neutral-500">{step.instructions}</p>
       </div>
 
-      <step.Component key={stepKey} pass={pass} fail={fail} />
+      <step.Component key={stepKey} pass={pass} fail={fail} restart={restart} />
 
       <p className="min-h-5 text-sm text-red-600" role="status">
         {message}

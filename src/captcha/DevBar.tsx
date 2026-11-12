@@ -40,7 +40,7 @@ export default function DevBar({ current, onGoTo }: Props) {
         <>
           {steps.map((s, i) => (
             <button key={i} onClick={() => onGoTo(i)} className={pill(current === i)}>
-              {i + 1}. {s.sense}
+              {i + 1}. {s.devLabel ?? s.sense}
             </button>
           ))}
           <button onClick={() => onGoTo(last)} className={pill(current === last)}>
