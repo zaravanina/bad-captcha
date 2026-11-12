@@ -1,0 +1,67 @@
+{
+  "folders": [
+    { "path": "." }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "files.exclude": {
+      "**/.next": true,
+      "**/node_modules": true
+    },
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.postCommitCommand": "sync",
+    "git.confirmSync": false
+  },
+  "extensions": {
+    "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "bradlc.vscode-tailwindcss"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Install",
+        "type": "shell",
+        "command": "npm install",
+        "problemMatcher": []
+      },
+      {
+        "label": "Dev server",
+        "type": "shell",
+        "command": "npm run dev",
+        "isBackground": true,
+        "problemMatcher": [],
+        "group": { "kind": "build", "isDefault": true }
+      },
+      {
+        "label": "Pull latest",
+        "type": "shell",
+        "command": "git pull --rebase",
+        "problemMatcher": []
+      },
+      {
+        "label": "Commit & push all",
+        "type": "shell",
+        "command": "git add -A && git commit -m \"${input:commitMessage}\" && git pull --rebase && git push",
+        "options": { "shell": { "executable": "cmd.exe", "args": ["/d", "/c"] } },
+        "problemMatcher": []
+      }
+    ],
+    "inputs": [
+      {
+        "id": "commitMessage",
+        "type": "promptString",
+        "description": "Commit message"
+      }
+    ]
+  }
+}

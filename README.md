@@ -34,3 +34,10 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Team setup
+
+1. `git clone https://github.com/zaravanina/bad-captcha.git`
+2. Open `bad-captcha.code-workspace` in VS Code (File → Open Workspace from File) and install the recommended extensions when prompted.
+3. Terminal → Run Task → **Install**, then **Dev server** (or `Ctrl+Shift+B`). Open http://localhost:3000.
+4. To share changes: Run Task → **Commit & push all** (pulls first, so you get everyone else's work), or use the Source Control panel — committing there syncs automatically.
