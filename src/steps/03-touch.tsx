@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-  type PointerEvent,
-} from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { defineStep, type StepProps } from "@/captcha/types";
 
 const N = 3;
@@ -20,11 +14,8 @@ const BOARD_Y = PAD;
 const TRAY_TOP = BOARD_Y + U * N + PAD * 2;
 const H = Math.round(TRAY_TOP + Math.ceil((N * N) / PER_ROW) * S * 0.9 + PAD);
 const TIME = 60;
-const FLIP_BACK_MIN_MS = 3000;
-const FLIP_BACK_MAX_MS = 10000;
-const CONFIRM_MS = 5500;
-const CONFIRM_START_DELAY_MS = 2000;
-const FLIP_ANIMATION_MS = 450;
+const FLIP_BACK_MIN_MS = 1500;
+const FLIP_BACK_MAX_MS = 4500;
 
 type Edges = [number, number, number, number];
 type Piece = {
@@ -51,6 +42,10 @@ function newPieces(): Piece[] {
   const hz = [...Array(N)].map(() => [...Array(N)].map(rnd));
   const vt = [...Array(N)].map(() => [...Array(N)].map(rnd));
   const spots = [...Array(N * N).keys()].sort(() => Math.random() - 0.5);
+  const step = (FLIP_BACK_MAX_MS - FLIP_BACK_MIN_MS) / (N * N - 1);
+  const delays = [...Array(N * N).keys()]
+    .map((k) => Math.round(FLIP_BACK_MIN_MS + k * step))
+    .sort(() => Math.random() - 0.5);
   const pieces: Piece[] = [];
   for (let r = 0; r < N; r++) {
     for (let c = 0; c < N; c++) {
@@ -68,10 +63,7 @@ function newPieces(): Piece[] {
           r < N - 1 ? hz[r][c] : 0,
           c ? -vt[r][c - 1] : 0,
         ],
-        flipBackMs: Math.round(
-          FLIP_BACK_MIN_MS +
-            Math.random() * (FLIP_BACK_MAX_MS - FLIP_BACK_MIN_MS),
-        ),
+        flipBackMs: delays[r * N + c],
         up: false,
         placed: false,
       });
@@ -203,15 +195,13 @@ function PieceFaces({ piece }: { piece: Piece }) {
   );
 }
 
-function FlipJigsaw({ pass, fail }: StepProps) {
+function FlipJigsaw({ pass }: StepProps) {
   const [pieces, setPieces] = useState(newPieces);
   const [left, setLeft] = useState(TIME);
   const [note, setNote] = useState("");
   const [zOrder, setZOrder] = useState<number[]>(() => [
     ...Array(N * N).keys(),
   ]);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmLeft, setConfirmLeft] = useState(CONFIRM_MS);
   const drag = useRef<{
     i: number;
     sx: number;
@@ -221,13 +211,13 @@ function FlipJigsaw({ pass, fail }: StepProps) {
     moved: boolean;
   } | null>(null);
   const flipTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
-  const confirmingRef = useRef(false);
+  const passed = useRef(false);
 
   useEffect(() => {
     const timers = flipTimers.current;
     let remaining = TIME;
     const id = setInterval(() => {
-      if (confirmingRef.current) return;
+      if (passed.current) return;
       remaining -= 1;
       if (remaining <= 0) {
         remaining = TIME;
@@ -244,66 +234,44 @@ function FlipJigsaw({ pass, fail }: StepProps) {
     };
   }, []);
 
-  const tooSlow = useEffectEvent(() =>
-    fail("Too slow. Press all the pieces faster."),
-  );
-
-  useEffect(() => {
-    if (!confirming) return;
-    let deadline = Date.now() + CONFIRM_MS + FLIP_ANIMATION_MS;
-    const id = setInterval(() => {
-      const ms = deadline - Date.now();
-      if (ms > 0) return setConfirmLeft(Math.min(ms, CONFIRM_MS));
-      deadline = Date.now() + CONFIRM_MS + FLIP_ANIMATION_MS;
-      setPieces((ps) => ps.map((p) => ({ ...p, up: false })));
-      setConfirmLeft(CONFIRM_MS);
-      tooSlow();
-    }, 100);
-    return () => clearInterval(id);
-  }, [confirming]);
-
-  function startConfirm() {
-    confirmingRef.current = true;
-    setTimeout(() => {
-      setPieces((ps) => ps.map((p) => ({ ...p, up: false })));
-      setNote("now press every piece, fast!");
-      setConfirming(true);
-    }, CONFIRM_START_DELAY_MS);
-  }
-
-  function press(i: number) {
-    if (pieces[i].up) return;
-    const next = pieces.map((p, j) => (j === i ? { ...p, up: true } : p));
-    setPieces(next);
-    if (next.every((p) => p.up)) {
-      setConfirming(false);
-      setTimeout(pass, 500);
-    }
-  }
-
-  function update(i: number, patch: Partial<Piece>) {
-    setPieces((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
-  }
-
-  function flip(i: number, up: boolean) {
+  function scheduleFlipBack(i: number) {
     clearTimeout(flipTimers.current.get(i));
-    update(i, { up });
-    if (up) {
-      flipTimers.current.set(
-        i,
-        setTimeout(() => {
-          if (drag.current?.i === i) return;
-          setPieces((ps) =>
-            ps.map((p, j) => (j === i && !p.placed ? { ...p, up: false } : p)),
-          );
-        }, pieces[i].flipBackMs),
-      );
+    flipTimers.current.set(
+      i,
+      setTimeout(() => {
+        if (drag.current?.i === i || passed.current) return;
+        setPieces((ps) =>
+          ps.map((p, j) => (j === i ? { ...p, up: false } : p)),
+        );
+      }, pieces[i].flipBackMs),
+    );
+  }
+
+  function commit(next: Piece[], i: number) {
+    setPieces(next);
+    scheduleFlipBack(i);
+    if (!next.every((p) => p.placed)) return;
+    if (next.every((p) => p.up)) {
+      passed.current = true;
+      flipTimers.current.forEach(clearTimeout);
+      setNote("verified.");
+      setTimeout(pass, 800);
+    } else {
+      setNote("now flip them all face up!");
     }
+  }
+
+  function flipUp(i: number) {
+    if (pieces[i].up) return;
+    commit(
+      pieces.map((p, j) => (j === i ? { ...p, up: true } : p)),
+      i,
+    );
   }
 
   function onDown(i: number, e: PointerEvent<HTMLDivElement>) {
-    if (confirming) return press(i);
-    if (pieces[i].placed) return;
+    if (passed.current) return;
+    if (pieces[i].placed) return flipUp(i);
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = {
       i,
@@ -323,7 +291,9 @@ function FlipJigsaw({ pass, fail }: StepProps) {
     const dy = e.clientY - d.sy;
     if (!d.moved && Math.hypot(dx, dy) < 5) return;
     d.moved = true;
-    update(d.i, { x: d.ox + dx, y: d.oy + dy });
+    setPieces((ps) =>
+      ps.map((p, j) => (j === d.i ? { ...p, x: d.ox + dx, y: d.oy + dy } : p)),
+    );
   }
 
   function onUp() {
@@ -332,22 +302,19 @@ function FlipJigsaw({ pass, fail }: StepProps) {
     if (!d) return;
     const p = pieces[d.i];
 
-    if (!d.moved) {
-      flip(d.i, !p.up);
-      return;
-    }
+    if (!d.moved) return flipUp(d.i);
 
     const tx = BOARD_X + p.c * U - PAD;
     const ty = BOARD_Y + p.r * U - PAD;
     if (Math.hypot(p.x - tx, p.y - ty) < U * 0.25) {
-      clearTimeout(flipTimers.current.get(d.i));
-      const next = pieces.map((o, j) =>
-        j === d.i ? { ...o, x: tx, y: ty, up: true, placed: true } : o,
+      commit(
+        pieces.map((o, j) =>
+          j === d.i ? { ...o, x: tx, y: ty, up: true, placed: true } : o,
+        ),
+        d.i,
       );
-      setPieces(next);
-      if (next.every((o) => o.placed)) startConfirm();
     } else {
-      flip(d.i, true);
+      scheduleFlipBack(d.i);
     }
   }
 
@@ -355,11 +322,7 @@ function FlipJigsaw({ pass, fail }: StepProps) {
     <div className="select-none bg-[#d6d3cc] p-3 font-[Arial,sans-serif]">
       <div className="mb-2 flex justify-between text-[11px] tabular-nums text-[#bdbab2]">
         <span>{note}</span>
-        <span>
-          {confirming
-            ? `${(confirmLeft / 1000).toFixed(1)}s`
-            : `0:${String(left).padStart(2, "0")}`}
-        </span>
+        <span>0:{String(left).padStart(2, "0")}</span>
       </div>
       <div
         className="relative mx-auto touch-none"
@@ -372,7 +335,7 @@ function FlipJigsaw({ pass, fail }: StepProps) {
         {pieces.map((p, i) => (
           <div
             key={i}
-            className={`absolute touch-none [perspective:600px] ${p.placed && !confirming ? "" : "cursor-pointer"}`}
+            className="absolute cursor-pointer touch-none [perspective:600px]"
             style={{
               left: p.x,
               top: p.y,
