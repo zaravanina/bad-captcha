@@ -11,6 +11,9 @@ const ROUNDS = 3;
 const RECORD_MS = 4000;
 const SING_MS = 15000;
 const PAIN_MS = 10000;
+// Low on purpose: any real scream (or loud "ow") should pass on the first try in the demo.
+const PAIN_RMS = 0.05;
+const PAIN_FRAMES = 3;
 const LENIENT_FROM_ATTEMPT = 3;
 const SUCCESS_DELAY_MS = 2500;
 
@@ -29,8 +32,6 @@ const LYRICS = [
   "anyway the wind blows",
 ];
 
-const PAIN_PATTERNS = [/^o+w+$/, /^o+u+c+h+$/, /^a+h+$/, /^a+r+g+h*$/, /^o+w+i+e+$/];
-const SWEARS = new Set(["damn", "dammit", "shit", "fuck", "fucking", "hell", "crap", "bloody", "bugger", "ffs"]);
 
 type RoundProps = { onPass: () => void; onFail: () => void };
 
@@ -304,23 +305,69 @@ function SingRound({ onPass, onFail }: RoundProps) {
 }
 
 function PainRound({ onPass, onFail }: RoundProps) {
-  const speech = useSpeechRecognition(PAIN_MS);
+  const [listening, setListening] = useState(false);
+  const [level, setLevel] = useState(0);
   const [attempts, setAttempts] = useState(0);
-  const [matched, setMatched] = useState<string[] | null>(null);
+  const [result, setResult] = useState<"pass" | "fail" | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
+  const stopRef = useRef<() => void>(() => {});
 
-  function scream() {
-    setMatched(null);
-    speech.start((text) => {
-      const words = normalize(text).split(" ");
-      const pain = [...new Set(words.filter((w) => SWEARS.has(w) || PAIN_PATTERNS.some((p) => p.test(w))))];
+  useEffect(() => () => stopRef.current(), []);
+
+  async function scream() {
+    setResult(null);
+    setMicError(null);
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setMicError("Microphone denied. The Lego wins this time. Allow the mic and try again.");
+      return;
+    }
+
+    const ctx = new AudioContext();
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const buffer = new Float32Array(analyser.fftSize);
+    let frame = 0;
+    let loudFrames = 0;
+
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+      stream.getTracks().forEach((t) => t.stop());
+      void ctx.close();
+      stopRef.current = () => {};
+      setListening(false);
+      setLevel(0);
+    };
+    const finish = (passed: boolean) => {
+      stop();
       setAttempts((a) => a + 1);
-      setMatched(pain);
-      if (pain.length) onPass();
+      setResult(passed ? "pass" : "fail");
+      if (passed) onPass();
       else onFail();
-    });
+    };
+    const timeout = setTimeout(() => finish(false), PAIN_MS);
+
+    const tick = () => {
+      analyser.getFloatTimeDomainData(buffer);
+      let sum = 0;
+      for (const v of buffer) sum += v * v;
+      const current = Math.sqrt(sum / buffer.length);
+      setLevel(current);
+      loudFrames = current >= PAIN_RMS ? loudFrames + 1 : 0;
+      if (loudFrames >= PAIN_FRAMES) return finish(true);
+      frame = requestAnimationFrame(tick);
+    };
+
+    stopRef.current = stop;
+    setListening(true);
+    frame = requestAnimationFrame(tick);
   }
 
-  const passed = !!matched?.length;
+  const passed = result === "pass";
 
   return (
     <div className="flex flex-col gap-3">
@@ -331,25 +378,27 @@ function PainRound({ onPass, onFail }: RoundProps) {
         fallback="The Lego picture is missing. Imagine the worst step of your life."
       />
       <p className="text-sm text-neutral-600">You just stepped on a Lego. Show us how much it hurt.</p>
-      {speech.listening ? (
-        <BigButton onClick={speech.stop}>Listening… tap to stop</BigButton>
+      {listening ? (
+        <BigButton onClick={() => stopRef.current()}>Listening… scream!</BigButton>
       ) : (
         <BigButton onClick={scream} disabled={passed}>
           {attempts ? "Step on it again" : "Step on the Lego"}
         </BigButton>
       )}
-      <Transcript text={speech.transcript} interim={speech.interim} />
+      {listening && (
+        <div className="relative h-3 overflow-hidden rounded bg-neutral-200" aria-hidden>
+          <div
+            className="h-full bg-red-500 transition-[width] duration-75"
+            style={{ width: `${Math.min(100, (level / PAIN_RMS) * 100)}%` }}
+          />
+        </div>
+      )}
       <p className="text-xs text-neutral-500">Attempts: {attempts}</p>
-      {speech.error && <Result pass={false}>{speechErrorMessage(speech.error)}</Result>}
-      {matched &&
-        (passed ? (
-          <>
-            <p className="text-sm text-neutral-600">Heard: {matched.join(", ")}</p>
-            <Result pass>Ouch, acknowledged. Round 3 passed. The Lego has been defeated.</Result>
-          </>
-        ) : (
-          <Result pass={false}>That sounded like a mild inconvenience. Put some real feeling into it.</Result>
-        ))}
+      {micError && <Result pass={false}>{micError}</Result>}
+      {result === "pass" && <Result pass>Ouch, acknowledged. Round 3 passed. The Lego has been defeated.</Result>}
+      {result === "fail" && (
+        <Result pass={false}>That sounded like a mild inconvenience. Put some real feeling into it.</Result>
+      )}
     </div>
   );
 }
