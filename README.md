@@ -1,43 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<div align="center">
 
-## Getting Started
+# 🤖 Bad Captcha
 
-First, run the development server:
+**Prove you're human. Good luck.**
+
+A deliberately terrible CAPTCHA. Built in two hours, for a demo.
+
+![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+
+</div>
+
+---
+
+## ✨ The idea
+
+CAPTCHAs are supposed to keep bots out and let humans in.
+This one does neither particularly well. That's the point.
+
+## 🚀 Quick start
+
+You need [Node.js](https://nodejs.org) 20+ and [Git](https://git-scm.com).
 
 ```bash
+git clone https://github.com/zaravanina/bad-captcha.git
+cd bad-captcha
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open **http://localhost:3000**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🧑‍💻 Working together in VS Code
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Open **`bad-captcha.code-workspace`** (File → Open Workspace from File) and install the recommended extensions when prompted.
+2. Run tasks from **Terminal → Run Task**:
 
-## Learn More
+   | Task | What it does |
+   | --- | --- |
+   | **Install** | `npm install` |
+   | **Dev server** | Starts the app on localhost:3000 (also `Ctrl+Shift+B`) |
+   | **Pull latest** | Gets everyone else's changes |
+   | **Commit & push all** | Asks for a message, commits, pulls, then pushes |
 
-To learn more about Next.js, take a look at the following resources:
+3. Prefer clicking? Commit in the **Source Control** panel. It pushes automatically.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> 💡 **Avoid merge conflicts:** try to work in different files from each other, and pull often.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📁 Project structure
 
-## Deploy on Vercel
+```
+src/
+└── app/
+    ├── layout.tsx    # Page shell, fonts, metadata
+    ├── page.tsx      # The home page, start here
+    └── globals.css   # Tailwind + global styles
+public/               # Images and static files
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛠️ Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server with hot reload |
+| `npm run build` | Build for production |
+| `npm start` | Run the production build |
+| `npm run lint` | Lint the code |
 
-## Team setup
+---
 
-1. `git clone https://github.com/zaravanina/bad-captcha.git`
-2. Open `bad-captcha.code-workspace` in VS Code (File → Open Workspace from File) and install the recommended extensions when prompted.
-3. Terminal → Run Task → **Install**, then **Dev server** (or `Ctrl+Shift+B`). Open http://localhost:3000.
-4. To share changes: Run Task → **Commit & push all** (pulls first, so you get everyone else's work), or use the Source Control panel — committing there syncs automatically.
+<div align="center">
+<sub>Made with questionable UX decisions 🙃</sub>
+</div>
