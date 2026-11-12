@@ -15,6 +15,9 @@ import {
 
 const TOLERANCE = 5;
 const SHOW_GUESS_MS = 3000;
+// Demo cheat: from the third Check on, entering these RGB values always passes.
+const CHEAT_FROM_ATTEMPT = 3;
+const CHEAT_RGB = [50, 80, 10];
 
 export default defineStep({
   sense: "See",
@@ -31,10 +34,17 @@ function ColorMatch({ pass, fail }: StepProps) {
   const [target] = useState(randomColor);
   const picker = useColorPicker();
   const [shownGuess, showGuess] = useFlash<RGB>(SHOW_GUESS_MS);
+  const [attempts, setAttempts] = useState(0);
 
   function check() {
+    const attempt = attempts + 1;
+    setAttempts(attempt);
     const guess = picker.read();
     if (!guess) return fail("Fill in every value within its range.");
+
+    const isCheat =
+      attempt >= CHEAT_FROM_ATTEMPT && guess.mode === "RGB" && guess.values.every((v, i) => v === CHEAT_RGB[i]);
+    if (isCheat) return pass();
 
     const channels = CHANNELS[guess.mode];
     const expected = valuesIn(target, guess.mode);
