@@ -1,138 +1,184 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { defineStep, type StepProps } from "@/captcha/types";
 
-const COLS = 5;
-const ROWS = 6;
-const TIME = 30;
-const MAX_MOVES = 15;
+const TOLERANCE = 5;
+const SHOW_GUESS_MS = 3000;
+
+type Mode = "RGB" | "HSL" | "CMYK";
+
+const CHANNELS: Record<Mode, { label: string; max: number; wraps?: boolean }[]> = {
+  RGB: [
+    { label: "Red", max: 255 },
+    { label: "Green", max: 255 },
+    { label: "Blue", max: 255 },
+  ],
+  HSL: [
+    { label: "Hue", max: 360, wraps: true },
+    { label: "Saturation", max: 100 },
+    { label: "Lightness", max: 100 },
+  ],
+  CMYK: [
+    { label: "Cyan", max: 100 },
+    { label: "Magenta", max: 100 },
+    { label: "Yellow", max: 100 },
+    { label: "Key (black)", max: 100 },
+  ],
+};
 
 type RGB = [number, number, number];
 
-const PALETTES: [RGB, RGB, RGB, RGB][] = [
-  [[220, 60, 60], [235, 200, 70], [60, 120, 210], [90, 190, 110]],
-  [[200, 70, 150], [240, 150, 80], [70, 90, 190], [80, 190, 180]],
-  [[180, 60, 70], [120, 170, 80], [150, 90, 180], [70, 160, 150]],
-];
-
 export default defineStep({
   sense: "See",
-  title: "Sort the hues",
-  instructions: "arrange the hues. it should feel right.",
-  Component: HueSort,
+  title: "Match the color",
+  instructions: "Enter the values of the color shown. Pick RGB, HSL or CMYK.",
+  Component: ColorMatch,
 });
 
-type Game = {
-  colors: RGB[];
-  locked: boolean[];
-  order: number[];
-  moves: number;
-  left: number;
-  drift: number;
-  note: string;
-};
-
-function newGame(note = ""): Game {
-  const [tl, tr, bl, br] = PALETTES[Math.floor(Math.random() * PALETTES.length)];
-  const colors: RGB[] = [];
-  const locked: boolean[] = [];
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const u = x / (COLS - 1);
-      const v = y / (ROWS - 1);
-      colors.push(
-        [0, 1, 2].map(
-          (i) => (tl[i] * (1 - u) + tr[i] * u) * (1 - v) + (bl[i] * (1 - u) + br[i] * u) * v,
-        ) as RGB,
-      );
-      locked.push((x === 0 || x === COLS - 1) && (y === 0 || y === ROWS - 1));
-    }
-  }
-  const order = colors.map((_, i) => i);
-  const free = order.filter((i) => !locked[i]);
-  const shuffled = [...free].sort(() => Math.random() - 0.5);
-  free.forEach((pos, k) => (order[pos] = shuffled[k]));
-  return { colors, locked, order, moves: 0, left: TIME, drift: 0, note };
+function hslToRgb(h: number, s: number, l: number): RGB {
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+  };
+  return [f(0), f(8), f(4)];
 }
 
-function hueShift([r, g, b]: RGB, deg: number) {
-  const a = (deg * Math.PI) / 180;
-  const c = Math.cos(a);
-  const s = Math.sin(a);
-  const m = [
-    0.213 + c * 0.787 - s * 0.213, 0.715 - c * 0.715 - s * 0.715, 0.072 - c * 0.072 + s * 0.928,
-    0.213 - c * 0.213 + s * 0.143, 0.715 + c * 0.285 + s * 0.14, 0.072 - c * 0.072 - s * 0.283,
-    0.213 - c * 0.213 - s * 0.787, 0.715 - c * 0.715 + s * 0.715, 0.072 + c * 0.928 + s * 0.072,
-  ];
-  const cl = (v: number) => Math.max(0, Math.min(255, Math.round(v)));
-  return `rgb(${cl(m[0] * r + m[1] * g + m[2] * b)},${cl(m[3] * r + m[4] * g + m[5] * b)},${cl(m[6] * r + m[7] * g + m[8] * b)})`;
+function rgbToHsl([r, g, b]: RGB) {
+  const [rn, gn, bn] = [r / 255, g / 255, b / 255];
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    if (max === rn) h = 60 * (((gn - bn) / d) % 6);
+    else if (max === gn) h = 60 * ((bn - rn) / d + 2);
+    else h = 60 * ((rn - gn) / d + 4);
+  }
+  return [Math.round((h + 360) % 360), Math.round(s * 100), Math.round(l * 100)];
 }
 
-function HueSort({ pass, fail }: StepProps) {
-  const [game, setGame] = useState(() => newGame());
-  const [selected, setSelected] = useState<number | null>(null);
+function rgbToCmyk([r, g, b]: RGB) {
+  const k = 1 - Math.max(r, g, b) / 255;
+  if (k === 1) return [0, 0, 0, 100];
+  const ch = (v: number) => Math.round(((1 - v / 255 - k) / (1 - k)) * 100);
+  return [ch(r), ch(g), ch(b), Math.round(k * 100)];
+}
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setGame((g) =>
-        g.left <= 1 ? newGame("too slow.") : { ...g, left: g.left - 1, drift: g.drift + 4 },
-      );
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
+function targetValues(rgb: RGB, mode: Mode) {
+  if (mode === "RGB") return [...rgb];
+  if (mode === "HSL") return rgbToHsl(rgb);
+  return rgbToCmyk(rgb);
+}
 
-  function pick(pos: number) {
-    if (game.locked[game.order[pos]]) return;
-    if (selected === null) return setSelected(pos);
-    if (selected === pos) return setSelected(null);
+function toRgb(values: number[], mode: Mode): RGB {
+  if (mode === "RGB") return values as RGB;
+  if (mode === "HSL") return hslToRgb(values[0], values[1] / 100, values[2] / 100);
+  const [c, m, y, k] = values.map((v) => v / 100);
+  return [c, m, y].map((v) => Math.round(255 * (1 - v) * (1 - k))) as RGB;
+}
 
-    const order = [...game.order];
-    [order[selected], order[pos]] = [order[pos], order[selected]];
-    setSelected(null);
-    if (game.moves + 1 >= MAX_MOVES) {
-      setGame(newGame());
-      fail("Out of moves. Are you a robot?");
-    } else {
-      setGame({ ...game, order, moves: game.moves + 1, note: "" });
-    }
+function randomColor(): RGB {
+  return hslToRgb(Math.random() * 360, 0.3 + Math.random() * 0.7, 0.2 + Math.random() * 0.6);
+}
+
+function ColorMatch({ pass, fail }: StepProps) {
+  const [target] = useState(randomColor);
+  const [mode, setMode] = useState<Mode>("RGB");
+  const [values, setValues] = useState<string[]>(["", "", ""]);
+  const [shownGuess, setShownGuess] = useState<RGB | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => () => clearTimeout(hideTimer.current), []);
+
+  function showGuess(guess: number[]) {
+    clearTimeout(hideTimer.current);
+    setShownGuess(toRgb(guess, mode));
+    hideTimer.current = setTimeout(() => setShownGuess(null), SHOW_GUESS_MS);
   }
 
-  function verify() {
-    if (game.order.every((t, i) => t === i)) pass();
-    else fail("No.");
+  function switchMode(next: Mode) {
+    setMode(next);
+    setValues(CHANNELS[next].map(() => ""));
+  }
+
+  function check() {
+    const channels = CHANNELS[mode];
+    const guess = values.map((v) => Number(v));
+    if (values.some((v) => v.trim() === "") || guess.some((v, i) => !Number.isFinite(v) || v < 0 || v > channels[i].max)) {
+      return fail("Fill in every value within its range.");
+    }
+
+    const expected = targetValues(target, mode);
+    const diffs = guess.map((v, i) => {
+      const d = Math.abs(v - expected[i]);
+      return channels[i].wraps ? Math.min(d, channels[i].max - d) : d;
+    });
+
+    if (diffs.every((d) => d === 0)) {
+      showGuess(guess);
+      return fail("Too perfect. Only a robot matches it exactly.");
+    }
+    if (diffs.some((d) => d > TOLERANCE)) {
+      showGuess(guess);
+      return fail("That is not the same color.");
+    }
+    pass();
   }
 
   return (
-    <div className="select-none bg-[#8a8d93] p-4 font-[Arial,sans-serif] text-[#7b7e84]">
-      <div className="grid aspect-[5/6] grid-cols-5 gap-0.5">
-        {game.order.map((t, pos) => (
-          <div
-            key={pos}
-            onClick={() => pick(pos)}
-            className={`relative transition-transform ${selected === pos ? "scale-[0.88]" : ""} ${
-              game.locked[t] ? "cursor-not-allowed" : "cursor-grab"
-            }`}
-            style={{ background: hueShift(game.colors[t], game.drift) }}
-          >
-            {game.locked[t] && (
-              <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/20" />
-            )}
+    <div className="flex flex-col gap-4">
+      <div className="flex h-32 w-full overflow-hidden rounded">
+        <div className="flex-1" style={{ background: `rgb(${target.join(",")})` }} />
+        {shownGuess && (
+          <div className="relative flex-1" style={{ background: `rgb(${shownGuess.join(",")})` }}>
+            <span className="absolute bottom-1 left-1 bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+              Your color
+            </span>
           </div>
+        )}
+      </div>
+
+      <div className="flex gap-1" role="radiogroup" aria-label="Color format">
+        {(Object.keys(CHANNELS) as Mode[]).map((m) => (
+          <button
+            key={m}
+            role="radio"
+            aria-checked={mode === m}
+            onClick={() => switchMode(m)}
+            className={`flex-1 border px-3 py-1.5 text-sm font-semibold ${
+              mode === m ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 text-neutral-700"
+            }`}
+          >
+            {m}
+          </button>
         ))}
       </div>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[11px] tabular-nums text-[#7e8187]">
-          ⏱ 0:{String(game.left).padStart(2, "0")} · moves {game.moves}/{MAX_MOVES}
-          {game.note && ` · ${game.note}`}
-        </span>
-        <button
-          onClick={verify}
-          className="bg-[#8f9298] px-4 py-2 text-xs font-bold text-[#878a90] outline-none"
-        >
-          verify
-        </button>
+
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${CHANNELS[mode].length}, minmax(0, 1fr))` }}>
+        {CHANNELS[mode].map((ch, i) => (
+          <label key={`${mode}-${ch.label}`} className="flex flex-col gap-1 text-xs text-neutral-600">
+            {ch.label}
+            <input
+              type="number"
+              min={0}
+              max={ch.max}
+              value={values[i]}
+              onChange={(e) => setValues(values.map((v, j) => (j === i ? e.target.value : v)))}
+              placeholder={`0–${ch.max}`}
+              className="w-full border border-neutral-300 px-2 py-1.5 text-sm text-neutral-900"
+            />
+          </label>
+        ))}
       </div>
+
+      <button onClick={check} className="bg-neutral-900 py-2 text-sm font-semibold text-white">
+        Check
+      </button>
     </div>
   );
 }
