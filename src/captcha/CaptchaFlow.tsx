@@ -13,7 +13,7 @@ export default function CaptchaFlow() {
   const isClient = useSyncExternalStore(subscribe, () => true, () => false);
 
   return (
-    <main className="grid flex-1 place-items-center bg-neutral-200 p-4 text-neutral-900">
+    <main className="relative grid flex-1 place-items-center bg-neutral-200 px-4 pb-4 pt-20 text-neutral-900">
       <div className="w-full max-w-md bg-white p-6 shadow-lg">
         {isClient ? <Flow /> : <p className="text-sm text-neutral-400">Loading…</p>}
       </div>
@@ -49,9 +49,10 @@ function Flow() {
   }, []);
 
   function navigateTo(i: number) {
-    if (!Number.isInteger(i) || i < 0 || i > steps.length) return;
+    if (!Number.isInteger(i) || i < -1 || i > steps.length) return;
     const url = new URL(window.location.href);
-    url.searchParams.set("step", String(i + 1));
+    if (i === -1) url.searchParams.delete("step");
+    else url.searchParams.set("step", String(i + 1));
     if (url.href !== window.location.href) {
       window.history.pushState(null, "", url);
     }
@@ -77,6 +78,15 @@ function Flow() {
     setRun((r) => r + 1);
   }
 
+  function backToLogin() {
+    navigateTo(-1);
+    setFails(0);
+    setMessage("");
+    setSeconds(0);
+    setStartedAt(Date.now());
+    setRun((r) => r + 1);
+  }
+
   function goTo(i: number) {
     if (i >= steps.length) setSeconds(Math.round((Date.now() - startedAt) / 1000));
     navigateTo(i);
@@ -86,6 +96,15 @@ function Flow() {
 
   return (
     <>
+      {started && (
+        <button
+          type="button"
+          onClick={backToLogin}
+          className="absolute left-4 top-4 text-xs text-neutral-500 hover:text-neutral-900 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        >
+          Back to login
+        </button>
+      )}
       {!started ? (
         <LoginScreen onVerify={() => {
           setStartedAt(Date.now());
