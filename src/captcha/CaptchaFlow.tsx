@@ -2,7 +2,9 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { steps } from "@/steps";
+import DevBar, { devBarEnabled } from "./DevBar";
 import FinalScreen from "./FinalScreen";
+import type { Step, StepProps } from "./types";
 
 const subscribe = () => () => {};
 
@@ -30,9 +32,9 @@ function Flow() {
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [seconds, setSeconds] = useState(0);
   const [run, setRun] = useState(0);
+  const [showDevBar] = useState(devBarEnabled);
 
   const done = index >= steps.length;
-  const step = steps[index];
 
   function pass() {
     setMessage("");
@@ -53,8 +55,37 @@ function Flow() {
     setRun((r) => r + 1);
   }
 
-  if (done) return <FinalScreen seconds={seconds} fails={fails} onRestart={restart} />;
+  function goTo(i: number) {
+    if (i >= steps.length) setSeconds(Math.round((Date.now() - startedAt) / 1000));
+    setIndex(i);
+    setMessage("");
+    setRun((r) => r + 1);
+    const url = new URL(window.location.href);
+    if (i < steps.length) url.searchParams.set("step", String(i + 1));
+    else url.searchParams.delete("step");
+    window.history.replaceState(null, "", url);
+  }
 
+  return (
+    <>
+      {done ? (
+        <FinalScreen seconds={seconds} fails={fails} onRestart={restart} />
+      ) : (
+        <StepView step={steps[index]} index={index} stepKey={`${run}-${index}`} message={message} pass={pass} fail={fail} />
+      )}
+      {showDevBar && <DevBar current={index} onGoTo={goTo} />}
+    </>
+  );
+}
+
+type StepViewProps = StepProps & {
+  step: Step;
+  index: number;
+  stepKey: string;
+  message: string;
+};
+
+function StepView({ step, index, stepKey, message, pass, fail }: StepViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -75,7 +106,7 @@ function Flow() {
         <p className="text-sm text-neutral-500">{step.instructions}</p>
       </div>
 
-      <step.Component key={`${run}-${index}`} pass={pass} fail={fail} />
+      <step.Component key={stepKey} pass={pass} fail={fail} />
 
       <p className="min-h-5 text-sm text-red-600" role="status">
         {message}

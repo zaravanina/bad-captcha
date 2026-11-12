@@ -61,7 +61,7 @@ The captcha is a series of steps, one per human sense. **Each person owns one st
 | 4 | Smell | `src/steps/04-smell.tsx` | Placeholder, waiting for its owner |
 | 5 | Emotion | `src/steps/05-emotion.tsx` | Placeholder, waiting for its owner |
 
-**Work on just your step:** open `http://localhost:3000/?step=2` to jump straight to step 2 (and so on).
+**Switching steps while developing:** in `npm run dev` there's a **DEV bar** at the bottom of the page. Click a step (or **Final**) to jump to it, click ↻ to restart the current step, or press **Alt + ← / →**. The URL updates too, so `http://localhost:3000/?step=2` reloads straight into step 2. The bar is hidden in production builds unless you add `?dev` to the URL.
 
 ### How a step works
 
