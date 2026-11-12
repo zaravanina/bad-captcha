@@ -49,15 +49,65 @@ Then open **http://localhost:3000**.
 
 > 💡 **Avoid merge conflicts:** try to work in different files from each other, and pull often.
 
+## 🧩 Steps (one per sense)
+
+The captcha is a series of steps, one per human sense. **Each person owns one step file and only edits that file**, so nobody's code clashes.
+
+| # | Sense | File | What it is |
+| --- | --- | --- | --- |
+| 1 | See | `src/steps/01-see.tsx` | Sort scrambled hue tiles into a gradient |
+| 2 | Hear | `src/steps/02-hear.tsx` | Match a tone's pitch with an unlabeled slider |
+| 3 | Touch | `src/steps/03-touch.tsx` | Jigsaw with face-down pieces that flip back |
+| 4 | Smell | `src/steps/04-smell.tsx` | Placeholder, waiting for its owner |
+| 5 | Emotion | `src/steps/05-emotion.tsx` | Placeholder, waiting for its owner |
+
+**Work on just your step:** open `http://localhost:3000/?step=2` to jump straight to step 2 (and so on).
+
+### How a step works
+
+A step file default-exports `defineStep(...)`. Your component gets two functions and decides its own rules:
+
+- `pass()`: call it when the user beats your step. The flow moves on to the next step.
+- `fail("message")`: call it when they get it wrong. It counts a failed attempt and shows the message.
+
+```tsx
+export default defineStep({
+  sense: "Smell",
+  title: "Sniff the right one",
+  instructions: "Pick the tile that smells like lavender.",
+  Component: MyStep,
+});
+
+function MyStep({ pass, fail }: StepProps) {
+  return <button onClick={pass}>I smelled it</button>;
+}
+```
+
+Steps only render in the browser, so `window`, `Math.random()` and audio are safe to use directly.
+
+### Add a new step
+
+1. Copy `src/steps/_template.tsx` to `src/steps/06-your-sense.tsx` and build your step in it.
+2. Add it to the list in `src/steps/index.ts` (one import line and one entry). This is the only shared file. If two people add a step at the same time, Git may ask you to keep both lines.
+
+When the last step passes, the final screen (`src/captcha/FinalScreen.tsx`) shows the time taken and the number of failed attempts.
+
 ## 📁 Project structure
 
 ```
 src/
-└── app/
-    ├── layout.tsx    # Page shell, fonts, metadata
-    ├── page.tsx      # The home page, start here
-    └── globals.css   # Tailwind + global styles
-public/               # Images and static files
+├── app/
+│   ├── layout.tsx         # Page shell, fonts, metadata
+│   ├── page.tsx           # Renders the captcha flow
+│   └── globals.css        # Tailwind + global styles
+├── captcha/
+│   ├── CaptchaFlow.tsx    # Runs the steps, progress bar, ?step=N
+│   ├── FinalScreen.tsx    # Shown after the last step
+│   └── types.ts           # defineStep, StepProps
+└── steps/
+    ├── index.ts           # Ordered list of steps
+    ├── _template.tsx      # Copy this to start a new step
+    └── 01-see.tsx …       # One file per step
 ```
 
 ## 🛠️ Scripts
